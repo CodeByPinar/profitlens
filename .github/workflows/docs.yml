@@ -1,4 +1,4 @@
-name: Deploy Docs
+name: Publish Docs
 
 on:
   push:
@@ -9,21 +9,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: docs-publish
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: GitHub Pages
+  publish:
+    name: Publish gh-pages branch
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,17 +28,18 @@ jobs:
           mkdir -p public
           cp -R gateway/docs/. public/
           perl -0pi -e 's#/docs/assets/#assets/#g; s#/docs/openapi\.json#openapi.json#g; s#/openapi\.json#openapi.json#g' public/index.html
+          touch public/.nojekyll
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: public
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish to gh-pages
+        run: |
+          cd public
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Publish docs"
+          git branch -M gh-pages
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
