@@ -1,0 +1,212 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: profitlens-postgres
+    environment:
+      POSTGRES_USER: profitlens
+      POSTGRES_PASSWORD: profitlens
+      POSTGRES_DB: profitlens
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./services/auth-service/migrations:/migrations/auth:ro
+      - ./services/project-service/migrations:/migrations/project:ro
+      - ./services/billing-service/migrations:/migrations/billing:ro
+      - ./services/analytics-service/migrations:/migrations/analytics:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U profitlens -d profitlens"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: profitlens-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: profitlens-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: profitlens-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  migrate-auth:
+    image: migrate/migrate:v4.17.1
+    container_name: profitlens-migrate-auth
+    volumes:
+      - ./services/auth-service/migrations:/migrations:ro
+    command: ["-path", "/migrations", "-database", "postgres://profitlens:profitlens@postgres:5432/profitlens?sslmode=disable&x-migrations-table=auth_schema_migrations", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  migrate-project:
+    image: migrate/migrate:v4.17.1
+    container_name: profitlens-migrate-project
+    volumes:
+      - ./services/project-service/migrations:/migrations:ro
+    command: ["-path", "/migrations", "-database", "postgres://profitlens:profitlens@postgres:5432/profitlens?sslmode=disable&x-migrations-table=project_schema_migrations", "up"]
+    depends_on:
+      migrate-auth:
+        condition: service_completed_successfully
+
+  migrate-billing:
+    image: migrate/migrate:v4.17.1
+    container_name: profitlens-migrate-billing
+    volumes:
+      - ./services/billing-service/migrations:/migrations:ro
+    command: ["-path", "/migrations", "-database", "postgres://profitlens:profitlens@postgres:5432/profitlens?sslmode=disable&x-migrations-table=billing_schema_migrations", "up"]
+    depends_on:
+      migrate-project:
+        condition: service_completed_successfully
+
+  migrate-analytics:
+    image: migrate/migrate:v4.17.1
+    container_name: profitlens-migrate-analytics
+    volumes:
+      - ./services/analytics-service/migrations:/migrations:ro
+    command: ["-path", "/migrations", "-database", "postgres://profitlens:profitlens@postgres:5432/profitlens?sslmode=disable&x-migrations-table=analytics_schema_migrations", "up"]
+    depends_on:
+      migrate-billing:
+        condition: service_completed_successfully
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: profitlens-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - gateway
+      - auth-service
+      - project-service
+      - billing-service
+      - analytics-service
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: profitlens-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    container_name: profitlens-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@profitlens.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_WTF_CSRF_ENABLED: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  auth-service:
+    build: ./services/auth-service
+    container_name: profitlens-auth-service
+    env_file: ./services/auth-service/.env.example
+    ports:
+      - "8001:8001"
+    depends_on:
+      migrate-auth:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  project-service:
+    build: ./services/project-service
+    container_name: profitlens-project-service
+    env_file: ./services/project-service/.env.example
+    ports:
+      - "8002:8002"
+    depends_on:
+      migrate-project:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  billing-service:
+    build: ./services/billing-service
+    container_name: profitlens-billing-service
+    env_file: ./services/billing-service/.env.example
+    ports:
+      - "8003:8003"
+    depends_on:
+      migrate-billing:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  analytics-service:
+    build: ./services/analytics-service
+    container_name: profitlens-analytics-service
+    env_file: ./services/analytics-service/.env.example
+    ports:
+      - "8004:8004"
+    depends_on:
+      migrate-analytics:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  gateway:
+    build: ./gateway
+    container_name: profitlens-gateway
+    env_file: ./gateway/.env.example
+    ports:
+      - "8000:8000"
+    depends_on:
+      - auth-service
+      - project-service
+      - billing-service
+      - analytics-service
+
+volumes:
+  postgres_data:
+  grafana_data:

@@ -1,0 +1,217 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"os/signal"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
+	"github.com/segmentio/kafka-go"
+	"go.uber.org/zap"
+)
+
+type state struct {
+	db *pgxpool.Pool
+	redis *redis.Client
+	kafka *kafka.Writer
+	logger *zap.Logger
+	secret []byte
+	service string
+	requests *prometheus.CounterVec
+	duration *prometheus.HistogramVec
+	published *prometheus.CounterVec
+	consumed *prometheus.CounterVec
+}
+
+type apiError struct { Code string `json:"code"`; Message string `json:"message"` }
+type event struct { EventType string `json:"event_type"`; Payload any `json:"payload"`; OccurredAt string `json:"occurred_at"` }
+
+func main() {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+	serviceName := env("SERVICE_NAME", "billing-service")
+	cfg, err := pgxpool.ParseConfig(env("DATABASE_URL", "postgres://profitlens:profitlens@localhost:5432/profitlens?sslmode=disable"))
+	if err != nil { logger.Fatal("failed to parse database url", zap.Error(err)) }
+	cfg.MaxConns = 25
+	db, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil { logger.Fatal("failed to connect database", zap.Error(err)) }
+	defer db.Close()
+	s := &state{
+		db: db, redis: redis.NewClient(&redis.Options{Addr: env("REDIS_ADDR", "localhost:6379")}),
+		kafka: &kafka.Writer{Addr: kafka.TCP(strings.Split(env("KAFKA_BROKERS", "localhost:9092"), ",")...), Topic: env("KAFKA_TOPIC", "profitlens.events"), Balancer: &kafka.LeastBytes{}},
+		logger: logger, secret: []byte(env("JWT_SECRET", "change-me")), service: serviceName,
+		requests: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "http_requests_total", Help: "Total HTTP requests.", ConstLabels: prometheus.Labels{"service": serviceName}}, []string{"method", "path", "status"}),
+		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "http_request_duration_seconds", Help: "HTTP request duration.", ConstLabels: prometheus.Labels{"service": serviceName}}, []string{"method", "path"}),
+		published: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "kafka_events_published_total", Help: "Published Kafka events.", ConstLabels: prometheus.Labels{"service": serviceName}}, []string{"event_type"}),
+		consumed: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "kafka_events_consumed_total", Help: "Consumed Kafka events.", ConstLabels: prometheus.Labels{"service": serviceName}}, []string{"event_type"}),
+	}
+	prometheus.MustRegister(s.requests, s.duration, s.published, s.consumed)
+	app := fiber.New(fiber.Config{ErrorHandler: s.errorHandler})
+	app.Use(requestid.New(), recover.New(), cors.New(), s.metrics(), s.auth(), s.rateLimit())
+	app.Get("/metrics", fiber.WrapHandler(promhttp.Handler()))
+	app.Post("/invoices", s.createInvoice)
+	app.Get("/invoices", s.listInvoices)
+	app.Get("/invoices/overdue", s.listOverdue)
+	app.Get("/invoices/:id", s.getInvoice)
+	app.Patch("/invoices/:id/send", s.sendInvoice)
+	app.Patch("/invoices/:id/pay", s.payInvoice)
+	go func() { if err := app.Listen(":" + env("PORT", "8003")); err != nil { logger.Fatal("server stopped", zap.Error(err)) } }()
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	_ = app.ShutdownWithTimeout(10 * time.Second)
+	_ = s.kafka.Close()
+	_ = s.redis.Close()
+}
+
+func (s *state) createInvoice(c *fiber.Ctx) error {
+	var req struct { ProjectID string `json:"project_id"`; AmountCents int64 `json:"amount_cents"`; Currency, IssuedDate, DueDate string }
+	if err := c.BodyParser(&req); err != nil || req.ProjectID == "" || req.AmountCents <= 0 || req.IssuedDate == "" || req.DueDate == "" { return s.fail(c, 400, "VALIDATION_FAILED", "Project, amount, issued date, and due date are required") }
+	if req.Currency == "" { req.Currency = "TRY" }
+	ctx, cancel := requestContext(c); defer cancel()
+	var id string
+	err := s.db.QueryRow(ctx, `INSERT INTO billing.invoices (project_id,amount_cents,currency,issued_date,due_date) SELECT $1,$2,$3,$4::date,$5::date WHERE EXISTS (SELECT 1 FROM project.projects p JOIN project.clients c ON c.id=p.client_id WHERE p.id=$1 AND c.user_id=$6 AND p.deleted_at IS NULL) RETURNING id`, req.ProjectID, req.AmountCents, req.Currency, req.IssuedDate, req.DueDate, userID(c)).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) { return s.fail(c, 404, "PROJECT_NOT_FOUND", "Project not found") }
+	if err != nil { return err }
+	return s.ok(c, fiber.Map{"id": id})
+}
+
+func (s *state) listInvoices(c *fiber.Ctx) error {
+	ctx, cancel := requestContext(c); defer cancel()
+	rows, err := s.db.Query(ctx, baseInvoiceSelect()+` ORDER BY i.created_at DESC`, userID(c))
+	if err != nil { return err }
+	return s.scanInvoices(c, rows)
+}
+
+func (s *state) listOverdue(c *fiber.Ctx) error {
+	ctx, cancel := requestContext(c); defer cancel()
+	_, _ = s.db.Exec(ctx, `UPDATE billing.invoices SET status='overdue', updated_at=now() WHERE status IN ('draft','sent') AND due_date < CURRENT_DATE`)
+	rows, err := s.db.Query(ctx, baseInvoiceSelect()+` AND i.status='overdue' ORDER BY i.due_date ASC`, userID(c))
+	if err != nil { return err }
+	return s.scanInvoices(c, rows)
+}
+
+func (s *state) getInvoice(c *fiber.Ctx) error {
+	ctx, cancel := requestContext(c); defer cancel()
+	row := s.db.QueryRow(ctx, baseInvoiceSelect()+` AND i.id=$2`, userID(c), c.Params("id"))
+	item, err := scanInvoice(row)
+	if errors.Is(err, pgx.ErrNoRows) { return s.fail(c, 404, "INVOICE_NOT_FOUND", "Invoice not found") }
+	if err != nil { return err }
+	return s.ok(c, item)
+}
+
+func (s *state) sendInvoice(c *fiber.Ctx) error { return s.updateStatus(c, "sent", "") }
+
+func (s *state) payInvoice(c *fiber.Ctx) error { return s.updateStatus(c, "paid", "invoice.paid") }
+
+func (s *state) updateStatus(c *fiber.Ctx, status, eventType string) error {
+	ctx, cancel := requestContext(c); defer cancel()
+	var projectID string
+	err := s.db.QueryRow(ctx, `UPDATE billing.invoices i SET status=$1, paid_at=CASE WHEN $1='paid' THEN now() ELSE paid_at END, updated_at=now() FROM project.projects p JOIN project.clients c ON c.id=p.client_id WHERE p.id=i.project_id AND i.id=$2 AND c.user_id=$3 AND i.deleted_at IS NULL RETURNING i.project_id`, status, c.Params("id"), userID(c)).Scan(&projectID)
+	if errors.Is(err, pgx.ErrNoRows) { return s.fail(c, 404, "INVOICE_NOT_FOUND", "Invoice not found") }
+	if err != nil { return err }
+	if eventType != "" { _ = s.publish(ctx, eventType, fiber.Map{"invoice_id": c.Params("id"), "project_id": projectID, "user_id": userID(c)}) }
+	return s.ok(c, fiber.Map{"id": c.Params("id"), "status": status})
+}
+
+func (s *state) scanInvoices(c *fiber.Ctx, rows pgx.Rows) error {
+	defer rows.Close()
+	items := []fiber.Map{}
+	for rows.Next() {
+		item, err := scanInvoice(rows)
+		if err != nil { return err }
+		items = append(items, item)
+	}
+	return s.ok(c, items)
+}
+
+type rowScanner interface { Scan(dest ...any) error }
+
+func scanInvoice(row rowScanner) (fiber.Map, error) {
+	var id, projectID, currency, status string
+	var amount int64
+	var issued, due time.Time
+	var paidAt *time.Time
+	err := row.Scan(&id, &projectID, &amount, &currency, &status, &issued, &due, &paidAt)
+	if err != nil { return nil, err }
+	return fiber.Map{"id": id, "project_id": projectID, "amount_cents": amount, "currency": currency, "status": status, "issued_date": issued.Format("2006-01-02"), "due_date": due.Format("2006-01-02"), "paid_at": paidAt}, nil
+}
+
+func baseInvoiceSelect() string {
+	return `SELECT i.id,i.project_id,i.amount_cents,i.currency,i.status,i.issued_date,i.due_date,i.paid_at FROM billing.invoices i JOIN project.projects p ON p.id=i.project_id JOIN project.clients c ON c.id=p.client_id WHERE c.user_id=$1 AND i.deleted_at IS NULL`
+}
+
+func (s *state) publish(ctx context.Context, eventType string, payload any) error {
+	raw, _ := json.Marshal(event{EventType: eventType, Payload: payload, OccurredAt: time.Now().UTC().Format(time.RFC3339)})
+	err := s.kafka.WriteMessages(ctx, kafka.Message{Key: []byte(eventType), Value: raw})
+	if err == nil { s.published.WithLabelValues(eventType).Inc() }
+	return err
+}
+
+func (s *state) auth() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if c.Path() == "/metrics" { return c.Next() }
+		token := strings.TrimPrefix(c.Get("Authorization"), "Bearer ")
+		claims := jwt.MapClaims{}
+		parsed, err := jwt.ParseWithClaims(token, claims, func(*jwt.Token) (any, error) { return s.secret, nil })
+		if err != nil || !parsed.Valid { return s.fail(c, 401, "UNAUTHORIZED", "Invalid or missing access token") }
+		c.Locals("user_id", claims["sub"])
+		c.Locals("plan", claims["plan"])
+		return c.Next()
+	}
+}
+
+func (s *state) rateLimit() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if c.Path() == "/metrics" { return c.Next() }
+		limit := int64(100)
+		if c.Locals("plan") == "pro" || c.Locals("plan") == "team" { limit = 1000 }
+		ctx, cancel := requestContext(c); defer cancel()
+		key := "rate:" + s.service + ":" + userID(c)
+		count, _ := s.redis.Incr(ctx, key).Result()
+		if count == 1 { _ = s.redis.Expire(ctx, key, time.Hour).Err() }
+		if count > limit { return s.fail(c, 429, "RATE_LIMIT_EXCEEDED", "Rate limit exceeded") }
+		return c.Next()
+	}
+}
+
+func (s *state) metrics() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		start := time.Now()
+		err := c.Next()
+		path := c.Route().Path
+		if path == "" { path = c.Path() }
+		s.requests.WithLabelValues(c.Method(), path, strconv.Itoa(c.Response().StatusCode())).Inc()
+		s.duration.WithLabelValues(c.Method(), path).Observe(time.Since(start).Seconds())
+		return err
+	}
+}
+
+func (s *state) errorHandler(c *fiber.Ctx, err error) error {
+	code := fiber.StatusInternalServerError
+	var fiberErr *fiber.Error
+	if errors.As(err, &fiberErr) { code = fiberErr.Code }
+	s.logger.Error("request failed", zap.String("request_id", c.GetRespHeader(fiber.HeaderXRequestID)), zap.String("user_id", userID(c)), zap.String("service_name", s.service), zap.Error(err))
+	return s.fail(c, code, "INTERNAL_ERROR", "Internal server error")
+}
+
+func (s *state) ok(c *fiber.Ctx, data any) error { return c.JSON(fiber.Map{"success": true, "data": data}) }
+func (s *state) fail(c *fiber.Ctx, status int, code, message string) error { return c.Status(status).JSON(fiber.Map{"success": false, "error": apiError{Code: code, Message: message}}) }
+func userID(c *fiber.Ctx) string { v, _ := c.Locals("user_id").(string); return v }
+func requestContext(c *fiber.Ctx) (context.Context, context.CancelFunc) { return context.WithTimeout(c.UserContext(), 10*time.Second) }
+func env(key, fallback string) string { if v := os.Getenv(key); v != "" { return v }; return fallback }

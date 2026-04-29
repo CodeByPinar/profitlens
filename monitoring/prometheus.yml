@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: gateway
+    static_configs:
+      - targets: ["gateway:8000"]
+  - job_name: auth-service
+    static_configs:
+      - targets: ["auth-service:8001"]
+  - job_name: project-service
+    static_configs:
+      - targets: ["project-service:8002"]
+  - job_name: billing-service
+    static_configs:
+      - targets: ["billing-service:8003"]
+  - job_name: analytics-service
+    static_configs:
+      - targets: ["analytics-service:8004"]
