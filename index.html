@@ -1,0 +1,1269 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProfitLens API Portal</title>
+  <style>
+    :root {
+      --bg: #f3f8fd;
+      --panel: rgba(255, 255, 255, .94);
+      --panel-solid: #ffffff;
+      --ink: #132033;
+      --muted: #536174;
+      --soft: #f6f9fd;
+      --line: rgba(89, 106, 132, .2);
+      --blue: #2563eb;
+      --cyan: #10b8df;
+      --violet: #7157ff;
+      --green: #059669;
+      --amber: #d97706;
+      --red: #dc2626;
+      --navy: #0e1728;
+      --shadow: 0 18px 52px rgba(21, 32, 51, .1);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Inter", "Segoe UI", Roboto, Arial, ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 15% 0%, rgba(16, 184, 223, .22), transparent 30rem),
+        radial-gradient(circle at 78% 0%, rgba(113, 87, 255, .16), transparent 29rem),
+        linear-gradient(135deg, #fbfdff 0%, var(--bg) 56%, #f8fbff 100%);
+      letter-spacing: 0;
+    }
+
+    body::before {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background-image:
+        linear-gradient(rgba(20, 32, 51, .04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(20, 32, 51, .04) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(to bottom, #000, transparent 78%);
+      content: "";
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button, input, select, textarea { font: inherit; }
+    h1, h2, h3, p { margin-top: 0; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(250, 253, 255, .94);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 250px;
+    }
+
+    .brand img {
+      width: 58px;
+      height: 58px;
+      object-fit: contain;
+      border-radius: 16px;
+      background: #fff;
+      padding: 6px;
+      box-shadow: 0 12px 30px rgba(37, 99, 235, .16);
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .topnav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .navlink, .button, .copyButton, .smallButton {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .92);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 800;
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+
+    .navlink { min-height: 36px; padding: 0 12px; }
+    .button { min-height: 44px; padding: 0 16px; }
+    .button.primary { border-color: transparent; background: linear-gradient(135deg, var(--blue), var(--violet)); color: #fff; }
+    .button.dark { background: var(--navy); color: #fff; }
+    .copyButton, .smallButton { min-height: 34px; padding: 0 11px; }
+
+    .navlink:hover, .button:hover, .copyButton:hover, .smallButton:hover {
+      transform: translateY(-1px);
+      border-color: rgba(37, 99, 235, .24);
+      box-shadow: 0 12px 30px rgba(21, 32, 51, .09);
+    }
+
+    .hero {
+      padding: 44px 22px 26px;
+    }
+
+    .heroGrid, .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .heroGrid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(380px, .92fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .heroCopy, .glass, .panel, .endpoint, .tester {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .heroCopy {
+      overflow: hidden;
+      position: relative;
+      border-radius: 24px;
+      padding: 38px;
+      min-height: 430px;
+    }
+
+    .heroCopy::after {
+      position: absolute;
+      right: -120px;
+      bottom: -150px;
+      width: 360px;
+      height: 360px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(16, 184, 223, .28), transparent 68%);
+      content: "";
+    }
+
+    .heroLogo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 34px;
+    }
+
+    .heroLogo img {
+      width: 96px;
+      height: 96px;
+      object-fit: contain;
+      border-radius: 26px;
+      background: #fff;
+      padding: 8px;
+      box-shadow: 0 20px 44px rgba(37, 99, 235, .16);
+    }
+
+    .heroLogo strong {
+      display: block;
+      font-size: 26px;
+      line-height: 1.15;
+    }
+
+    .heroLogo span {
+      display: block;
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 750;
+    }
+
+    .hero h1 {
+      max-width: 780px;
+      margin-bottom: 18px;
+      font-size: clamp(36px, 4.4vw, 62px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .gradientText {
+      color: transparent;
+      background: linear-gradient(120deg, var(--blue), var(--violet), var(--cyan));
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+
+    .hero p {
+      max-width: 760px;
+      color: #425066;
+      font-size: 18px;
+      line-height: 1.72;
+    }
+
+    .heroActions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 26px;
+    }
+
+    .commandCard {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+      border-radius: 24px;
+      background: #0d1627;
+      color: #eaf2ff;
+      box-shadow: 0 30px 90px rgba(13, 22, 39, .24);
+    }
+
+    .commandHead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 72px;
+      padding: 12px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, .1);
+    }
+
+    .commandTitle {
+      display: grid;
+      gap: 3px;
+    }
+
+    .commandTitle strong {
+      color: #f8fbff;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .commandTitle span {
+      color: rgba(234, 242, 255, .66);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .statusPills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 28px;
+      border-radius: 999px;
+      padding: 0 10px;
+      background: rgba(255, 255, 255, .08);
+      color: rgba(255, 255, 255, .84);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 6px rgba(34, 197, 94, .14);
+    }
+
+    .terminal {
+      padding: 22px;
+    }
+
+    pre {
+      overflow: auto;
+      margin: 0;
+      border-radius: 14px;
+      background: #101b2f;
+      color: #d9e8ff;
+      padding: 16px;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    code, .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .container {
+      padding: 16px 22px 70px;
+    }
+
+    .section {
+      margin-top: 26px;
+    }
+
+    .sectionHead {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 14px;
+    }
+
+    .sectionHead h2 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    .sectionHead p {
+      max-width: 700px;
+      margin: 0;
+      color: #4c5a6e;
+      line-height: 1.65;
+      font-size: 15px;
+      text-align: right;
+    }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .cols4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .panel {
+      border-radius: var(--radius);
+      padding: 18px;
+    }
+
+    .panel h3 {
+      margin-bottom: 8px;
+      font-size: 17px;
+    }
+
+    .panel p, .panel li {
+      color: #4e5c70;
+      font-size: 15px;
+      line-height: 1.68;
+    }
+
+    .panel ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .metric strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .serviceMap {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .serviceNode {
+      display: grid;
+      grid-template-columns: 150px 1fr auto;
+      gap: 14px;
+      align-items: center;
+      min-height: 62px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, .78);
+      padding: 13px 14px;
+    }
+
+    .serviceNode strong { font-size: 15px; }
+    .serviceNode span { color: #4e5c70; font-size: 14px; line-height: 1.55; }
+
+    .port {
+      border-radius: 999px;
+      background: #eef5ff;
+      color: var(--blue);
+      padding: 6px 10px;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .labGrid {
+      display: grid;
+      grid-template-columns: minmax(330px, .85fr) minmax(0, 1.15fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .tester {
+      border-radius: 24px;
+      padding: 18px;
+    }
+
+    .fieldGrid {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .92);
+      color: var(--ink);
+      outline: none;
+      padding: 11px 12px;
+      font-size: 15px;
+    }
+
+    textarea {
+      min-height: 152px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .labActions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-top: 12px;
+    }
+
+    .resultBox {
+      min-height: 235px;
+      margin-top: 12px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 16px;
+      background: #0d1627;
+      color: #d9e8ff;
+      padding: 14px;
+      white-space: pre-wrap;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .docsShell {
+      display: grid;
+      grid-template-columns: 292px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .side {
+      position: sticky;
+      top: 92px;
+      display: grid;
+      gap: 12px;
+      max-height: calc(100vh - 112px);
+      overflow: auto;
+    }
+
+    .tagList {
+      display: grid;
+      gap: 4px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 10px;
+    }
+
+    .tagList a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-radius: 12px;
+      padding: 10px;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .tagList a:hover { background: rgba(37, 99, 235, .08); }
+
+    .count {
+      min-width: 26px;
+      border-radius: 999px;
+      background: #eaf2ff;
+      color: var(--blue);
+      padding: 5px 8px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .endpoint {
+      overflow: hidden;
+      margin-bottom: 12px;
+      border-radius: var(--radius);
+    }
+
+    .endpoint summary {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .endpoint summary::-webkit-details-marker { display: none; }
+
+    .method {
+      width: 74px;
+      border-radius: 10px;
+      color: #fff;
+      padding: 7px 0;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .get { background: var(--blue); }
+    .post { background: var(--green); }
+    .patch { background: var(--amber); }
+    .delete { background: var(--red); }
+
+    .path {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border-radius: 999px;
+      background: #eaf2ff;
+      color: var(--blue);
+      padding: 0 9px;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .badge.green { background: #e8f8f0; color: var(--green); }
+    .badge.amber { background: #fff5df; color: var(--amber); }
+
+    .details {
+      border-top: 1px solid var(--line);
+      padding: 16px;
+    }
+
+    .detailsGrid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, .72fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .summaryText {
+      color: var(--muted);
+      color: #4e5c70;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .78);
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      background: #f7faff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .block { margin-top: 14px; }
+    .block h3 { margin-bottom: 8px; font-size: 13px; }
+
+    .empty {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 24px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 50;
+      display: none;
+      max-width: 360px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #101b2f;
+      color: #fff;
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .toast.show { display: block; }
+
+    @media (max-width: 1080px) {
+      .heroGrid, .labGrid, .docsShell, .detailsGrid { grid-template-columns: 1fr; }
+      .side { position: static; max-height: none; }
+      .cols4, .cols3, .cols2 { grid-template-columns: 1fr 1fr; }
+      .sectionHead { align-items: start; flex-direction: column; }
+      .sectionHead p { text-align: left; }
+    }
+
+    @media (max-width: 700px) {
+      .topbar { align-items: stretch; flex-direction: column; }
+      .topnav { justify-content: start; }
+      .hero { padding-top: 28px; }
+      .heroCopy { padding: 24px; min-height: auto; }
+      .commandHead { align-items: start; flex-direction: column; padding: 14px; }
+      .cols4, .cols3, .cols2 { grid-template-columns: 1fr; }
+      .serviceNode { grid-template-columns: 1fr; }
+      .endpoint summary { grid-template-columns: 82px minmax(0, 1fr); }
+      .endpoint summary .badge { grid-column: 2; justify-self: start; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#overview">
+      <img src="assets/logo-mark.png" alt="ProfitLens logo">
+      <div>
+        <strong>ProfitLens API Portal</strong>
+        <span id="apiMeta">OpenAPI spec yükleniyor</span>
+      </div>
+    </a>
+    <nav class="topnav" aria-label="Ana navigasyon">
+      <a class="navlink" href="#overview">Genel Bakış</a>
+      <a class="navlink" href="#architecture">Mimari</a>
+      <a class="navlink" href="#testing">Test Lab</a>
+      <a class="navlink" href="#endpoints">Endpointler</a>
+      <a class="navlink" href="openapi.json">OpenAPI JSON</a>
+    </nav>
+  </header>
+
+  <section class="hero" id="overview">
+    <div class="heroGrid">
+      <div class="heroCopy">
+        <div class="heroLogo">
+          <img src="assets/logo-mark.png" alt="ProfitLens logo">
+          <div>
+            <strong>ProfitLens</strong>
+            <span>Project profitability intelligence</span>
+          </div>
+        </div>
+        <h1>Freelancer ve ajanslar için <span class="gradientText">kârlılık odaklı</span> API platformu.</h1>
+        <p>ProfitLens; müşterileri, projeleri, zaman kayıtlarını, giderleri, faturaları ve analitik snapshotları tek gateway altında toplar. Servisler birbirleriyle doğrudan konuşmaz; Kafka eventleriyle kârlılık ve risk skorları güncellenir.</p>
+        <div class="heroActions">
+          <a class="button primary" href="#testing">Canlı API testi yap</a>
+          <a class="button" href="#endpoints">Endpointleri incele</a>
+          <a class="button dark" href="http://localhost:5050/login" target="_blank" rel="noreferrer">pgAdmin aç</a>
+        </div>
+      </div>
+      <aside class="commandCard" aria-label="Hızlı başlangıç">
+        <div class="commandHead">
+          <div class="commandTitle">
+            <strong>Quickstart Console</strong>
+            <span>Local development commands</span>
+          </div>
+          <div class="statusPills">
+            <span class="pill"><i class="pulse"></i>Gateway 8000</span>
+            <span class="pill">Postgres 55432</span>
+          </div>
+        </div>
+        <div class="terminal">
+          <pre id="quickCommand"><code>docker compose up -d --build
+
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@profitlens.com","password":"Password123!"}'
+
+curl http://localhost:8000/dashboard \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}"</code></pre>
+          <div class="labActions">
+            <button class="copyButton" data-copy="quickCommand">Komutları kopyala</button>
+            <a class="button" href="http://localhost:3000" target="_blank" rel="noreferrer">Grafana</a>
+            <a class="button" href="http://localhost:9090" target="_blank" rel="noreferrer">Prometheus</a>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <main class="container">
+    <section class="section">
+      <div class="grid cols4">
+        <article class="panel metric"><strong>15 dk</strong><span>Access token süresi</span></article>
+        <article class="panel metric"><strong>7 gün</strong><span>Refresh token süresi</span></article>
+        <article class="panel metric"><strong>5 dk</strong><span>Dashboard ve kârlılık cache TTL</span></article>
+        <article class="panel metric"><strong>1000/saat</strong><span>Pro ve team rate limit</span></article>
+      </div>
+    </section>
+
+    <section class="section" id="architecture">
+      <div class="sectionHead">
+        <h2>Mimari Harita</h2>
+        <p>Her servis bağımsız build edilir, kendi sorumluluk alanını yönetir ve dış dünyaya yalnızca Gateway üzerinden açılır. İç iletişim Kafka eventleriyle asenkron ilerler.</p>
+      </div>
+      <div class="grid cols2">
+        <article class="panel">
+          <div class="serviceMap">
+            <div class="serviceNode"><strong>Gateway</strong><span>Public API surface, auth validation, proxy, metrics, docs</span><b class="port">8000</b></div>
+            <div class="serviceNode"><strong>Auth Service</strong><span>User registration, login, refresh token storage, bcrypt, JWT</span><b class="port">8001</b></div>
+            <div class="serviceNode"><strong>Project Service</strong><span>Clients, projects, time entries, expenses, project events</span><b class="port">8002</b></div>
+            <div class="serviceNode"><strong>Billing Service</strong><span>Invoices, sent/paid status, overdue reads, invoice events</span><b class="port">8003</b></div>
+            <div class="serviceNode"><strong>Analytics Service</strong><span>Profit snapshots, client risk score, dashboard, reports</span><b class="port">8004</b></div>
+          </div>
+        </article>
+        <article class="panel">
+          <h3>Kârlılık Mantığı</h3>
+          <p>Para değerleri her zaman integer cent/kuruş olarak saklanır. Float kullanılmaz.</p>
+          <ul>
+            <li>Gelir = ödenmiş fatura toplamı</li>
+            <li>Saat maliyeti = toplam saat × kullanıcının saatlik maliyeti</li>
+            <li>Net kâr = gelir - saat maliyeti - giderler</li>
+            <li>Kâr marjı = net kâr / gelir × 100</li>
+          </ul>
+          <h3>Risk Skoru</h3>
+          <p>0-30 sağlıklı, 31-60 dikkatli, 61-100 zararlı müşteri. Skor; gecikmiş fatura, ödeme gecikmesi, şikayet/revizyon oranı, kâr marjı ve iş hacmiyle hesaplanır.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="sectionHead">
+        <h2>Event, Cache ve Monitoring</h2>
+        <p>Bu bölüm canlı sistem davranışını hızlı anlamak için hazırlanmıştır.</p>
+      </div>
+      <div class="grid cols3">
+        <article class="panel">
+          <h3>Kafka Eventleri</h3>
+          <ul>
+            <li>time.entry.created → profitability recalculation</li>
+            <li>expense.added → profitability recalculation</li>
+            <li>invoice.paid → profit + risk update</li>
+            <li>invoice.overdue → risk increase</li>
+            <li>project.closed → final snapshot</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>Redis Cache Keys</h3>
+          <ul>
+            <li>profit:project:{project_id}</li>
+            <li>profit:client:{client_id}</li>
+            <li>risk:client:{client_id}</li>
+            <li>dashboard:user:{user_id}</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>Observability</h3>
+          <ul>
+            <li>/metrics tüm servislerde açık</li>
+            <li>http_requests_total</li>
+            <li>http_request_duration_seconds</li>
+            <li>kafka_events_published_total</li>
+            <li>kafka_events_consumed_total</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="testing">
+      <div class="sectionHead">
+        <h2>Canlı Test Lab</h2>
+        <p>Önce kullanıcı oluştur veya login ol. Token otomatik saklanır; sonra korumalı endpointleri aynı sayfadan deneyebilirsin.</p>
+      </div>
+      <div class="labGrid">
+        <article class="tester">
+          <h3>1. Auth Token Al</h3>
+          <div class="fieldGrid">
+            <label>Email
+              <input id="authEmail" type="email" value="demo@profitlens.com">
+            </label>
+            <label>Password
+              <input id="authPassword" type="password" value="Password123!">
+            </label>
+            <label>Full Name
+              <input id="authName" type="text" value="Demo User">
+            </label>
+            <label>Hourly Cost
+              <input id="authCost" type="text" value="250.00">
+            </label>
+          </div>
+          <div class="labActions">
+            <button class="button primary" id="registerButton">Register</button>
+            <button class="button dark" id="loginButton">Login</button>
+            <button class="button" id="clearTokenButton">Token temizle</button>
+          </div>
+          <div class="resultBox" id="authResult">Token durumu: bekleniyor.</div>
+        </article>
+
+        <article class="tester">
+          <h3>2. Endpoint Test Et</h3>
+          <div class="fieldGrid">
+            <label>Method
+              <select id="testMethod">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+              </select>
+            </label>
+            <label>Path
+              <input id="testPath" type="text" value="/dashboard">
+            </label>
+            <label>JSON Body
+              <textarea id="testBody" spellcheck="false"></textarea>
+            </label>
+          </div>
+          <div class="labActions">
+            <button class="button primary" id="sendButton">İstek gönder</button>
+            <button class="button" id="dashboardPreset">Dashboard</button>
+            <button class="button" id="clientsPreset">Clients</button>
+            <button class="button" id="invoicePreset">Invoice body</button>
+          </div>
+          <div class="resultBox" id="testResult">Response burada görünecek.</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="sectionHead">
+        <h2>Önerilen Test Senaryoları</h2>
+        <p>Uçtan uca kârlılık testi için sıralı çalıştırılabilecek akışlar.</p>
+      </div>
+      <div class="grid cols3">
+        <article class="panel">
+          <h3>Happy Path</h3>
+          <ul>
+            <li>Register + login</li>
+            <li>Client oluştur</li>
+            <li>Project oluştur</li>
+            <li>Time entry + expense ekle</li>
+            <li>Invoice oluştur, paid işaretle</li>
+            <li>Profitability ve dashboard oku</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>Security Path</h3>
+          <ul>
+            <li>Token olmadan /dashboard çağır → 401</li>
+            <li>Yanlış token ile /clients çağır → 401</li>
+            <li>Başka user verisine erişim dene → 404/403 bekle</li>
+            <li>Refresh token ile access yenile</li>
+          </ul>
+        </article>
+        <article class="panel">
+          <h3>Monitoring Path</h3>
+          <ul>
+            <li>/metrics endpointlerini kontrol et</li>
+            <li>Prometheus target durumuna bak</li>
+            <li>Grafana dashboardlarını aç</li>
+            <li>Kafka event sayaçlarını izle</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="endpoints">
+      <div class="sectionHead">
+        <h2>Endpoint Explorer</h2>
+        <p>OpenAPI spec canlı okunur. Endpoint aç, cURL kopyala veya path'i Test Lab'e gönder.</p>
+      </div>
+      <div class="docsShell">
+        <aside class="side">
+          <input id="search" type="search" placeholder="Endpoint, tag veya method ara">
+          <div class="tagList" id="nav"></div>
+          <article class="panel">
+            <h3>Auth Notu</h3>
+            <p>Public auth endpointleri hariç tüm isteklerde `Authorization: Bearer &lt;access_token&gt;` header'ı gerekir.</p>
+          </article>
+        </aside>
+        <section id="content">
+          <div class="empty">OpenAPI yükleniyor...</div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const apiBase = window.location.origin;
+    const methodOrder = { get: 1, post: 2, patch: 3, delete: 4 };
+    const state = { operations: [], token: localStorage.getItem("profitlens_access_token") || "" };
+
+    const elements = {
+      apiMeta: document.querySelector("#apiMeta"),
+      search: document.querySelector("#search"),
+      nav: document.querySelector("#nav"),
+      content: document.querySelector("#content"),
+      toast: document.querySelector("#toast"),
+      authResult: document.querySelector("#authResult"),
+      testResult: document.querySelector("#testResult"),
+      authEmail: document.querySelector("#authEmail"),
+      authPassword: document.querySelector("#authPassword"),
+      authName: document.querySelector("#authName"),
+      authCost: document.querySelector("#authCost"),
+      testMethod: document.querySelector("#testMethod"),
+      testPath: document.querySelector("#testPath"),
+      testBody: document.querySelector("#testBody")
+    };
+
+    updateTokenStatus();
+    loadSpec();
+
+    document.querySelectorAll("[data-copy]").forEach((button) => {
+      button.addEventListener("click", () => copyElementText(button.dataset.copy));
+    });
+
+    document.querySelector("#registerButton").addEventListener("click", () => authRequest("/auth/register"));
+    document.querySelector("#loginButton").addEventListener("click", () => authRequest("/auth/login"));
+    document.querySelector("#clearTokenButton").addEventListener("click", clearToken);
+    document.querySelector("#sendButton").addEventListener("click", sendTestRequest);
+    document.querySelector("#dashboardPreset").addEventListener("click", () => setTester("GET", "/dashboard", ""));
+    document.querySelector("#clientsPreset").addEventListener("click", () => setTester("GET", "/clients", ""));
+    document.querySelector("#invoicePreset").addEventListener("click", () => setTester("POST", "/invoices", JSON.stringify({
+      project_id: "00000000-0000-0000-0000-000000000000",
+      amount_cents: 500000,
+      currency: "TRY",
+      issued_date: "2026-04-29",
+      due_date: "2026-05-29"
+    }, null, 2)));
+
+    elements.search.addEventListener("input", () => {
+      const query = elements.search.value.trim().toLowerCase();
+      const filtered = state.operations.filter((operation) => {
+        return [operation.method, operation.path, operation.summary, operation.description, operation.tag].join(" ").toLowerCase().includes(query);
+      });
+      render(filtered);
+    });
+
+    async function loadSpec() {
+      try {
+        const response = await fetch("openapi.json", { cache: "no-store" });
+        if (!response.ok) throw new Error(`OpenAPI request failed with status ${response.status}`);
+        const spec = await response.json();
+        elements.apiMeta.textContent = `${spec.info.title} · ${spec.info.version}`;
+        state.operations = collectOperations(spec);
+        render(state.operations);
+      } catch (error) {
+        elements.content.innerHTML = `<div class="empty">OpenAPI spec yüklenemedi: ${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    async function authRequest(path) {
+      const body = path === "/auth/register"
+        ? {
+            email: elements.authEmail.value,
+            password: elements.authPassword.value,
+            full_name: elements.authName.value,
+            hourly_cost: elements.authCost.value
+          }
+        : {
+            email: elements.authEmail.value,
+            password: elements.authPassword.value
+          };
+
+      elements.authResult.textContent = "İstek gönderiliyor...";
+      const result = await request(path, "POST", body, false);
+      if (result.json?.data?.access_token) {
+        state.token = result.json.data.access_token;
+        localStorage.setItem("profitlens_access_token", state.token);
+      }
+      updateTokenStatus();
+      elements.authResult.textContent = formatResult(result);
+    }
+
+    async function sendTestRequest() {
+      const method = elements.testMethod.value;
+      const path = elements.testPath.value.startsWith("/") ? elements.testPath.value : `/${elements.testPath.value}`;
+      let body = null;
+
+      if (elements.testBody.value.trim()) {
+        try {
+          body = JSON.parse(elements.testBody.value);
+        } catch (error) {
+          elements.testResult.textContent = `Invalid JSON body: ${error.message}`;
+          return;
+        }
+      }
+
+      elements.testResult.textContent = "İstek gönderiliyor...";
+      const result = await request(path, method, body, true);
+      elements.testResult.textContent = formatResult(result);
+    }
+
+    async function request(path, method, body, withAuth) {
+      const headers = {};
+      if (body) headers["Content-Type"] = "application/json";
+      if (withAuth && state.token) headers.Authorization = `Bearer ${state.token}`;
+
+      try {
+        const response = await fetch(`${apiBase}${path}`, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined
+        });
+        const text = await response.text();
+        let json = null;
+        try { json = text ? JSON.parse(text) : null; } catch (_) {}
+        return { status: response.status, ok: response.ok, json, text };
+      } catch (error) {
+        return { status: 0, ok: false, json: null, text: error.message };
+      }
+    }
+
+    function collectOperations(spec) {
+      return Object.entries(spec.paths).flatMap(([path, methods]) => {
+        return Object.entries(methods).map(([method, operation]) => ({
+          path,
+          method,
+          tag: operation.tags?.[0] || "General",
+          summary: operation.summary || "",
+          description: operation.description || "",
+          parameters: operation.parameters || [],
+          requestBody: operation.requestBody,
+          responses: operation.responses || {},
+          security: operation.security || spec.security || []
+        }));
+      }).sort((a, b) => a.tag.localeCompare(b.tag) || a.path.localeCompare(b.path) || (methodOrder[a.method] || 9) - (methodOrder[b.method] || 9));
+    }
+
+    function render(items) {
+      const tags = [...new Set(items.map((operation) => operation.tag))];
+      elements.nav.innerHTML = tags.map((tag) => {
+        const count = items.filter((operation) => operation.tag === tag).length;
+        return `<a href="#${slug(tag)}"><span>${escapeHtml(tag)}</span><span class="count">${count}</span></a>`;
+      }).join("");
+
+      if (!items.length) {
+        elements.content.innerHTML = '<div class="empty">Aramayla eşleşen endpoint yok.</div>';
+        return;
+      }
+
+      elements.content.innerHTML = tags.map((tag) => {
+        const endpoints = items.filter((operation) => operation.tag === tag).map(renderEndpoint).join("");
+        return `<h2 class="block" id="${slug(tag)}">${escapeHtml(tag)}</h2>${endpoints}`;
+      }).join("");
+
+      document.querySelectorAll("[data-curl]").forEach((button) => {
+        button.addEventListener("click", () => copyText(button.dataset.curl));
+      });
+      document.querySelectorAll("[data-load-test]").forEach((button) => {
+        button.addEventListener("click", () => loadEndpointIntoTester(button.dataset.loadTest));
+      });
+    }
+
+    function renderEndpoint(operation) {
+      const schema = operation.requestBody?.content?.["application/json"]?.schema;
+      const publicEndpoint = Array.isArray(operation.security) && operation.security.length === 0;
+      const curl = buildCurl(operation, schema);
+      const testPayload = JSON.stringify({ method: operation.method.toUpperCase(), path: operation.path, body: schema ? exampleFromSchema(schema) : null });
+      return `
+        <details class="endpoint">
+          <summary>
+            <span class="method ${operation.method}">${operation.method.toUpperCase()}</span>
+            <span class="path mono">${escapeHtml(operation.path)}</span>
+            ${publicEndpoint ? '<span class="badge green">Public</span>' : '<span class="badge">Bearer auth</span>'}
+          </summary>
+          <div class="details">
+            <div class="detailsGrid">
+              <div>
+                <p class="summaryText">${escapeHtml(operation.summary || operation.description || "Açıklama yok.")}</p>
+                ${renderParameters(operation.parameters)}
+                ${schema ? renderSchema("Request Body Example", schema) : ""}
+                ${renderResponses(operation.responses)}
+              </div>
+              <div>
+                <pre><code>${escapeHtml(curl)}</code></pre>
+                <div class="labActions">
+                  <button class="smallButton" data-curl="${escapeHtml(curl)}">cURL kopyala</button>
+                  <button class="smallButton" data-load-test="${escapeHtml(testPayload)}">Test Lab'e yükle</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+      `;
+    }
+
+    function renderParameters(parameters) {
+      if (!parameters.length) return "";
+      const rows = parameters.map((parameter) => `
+        <tr>
+          <td><code>${escapeHtml(parameter.name)}</code></td>
+          <td>${escapeHtml(parameter.in)}</td>
+          <td>${parameter.required ? "yes" : "no"}</td>
+          <td>${escapeHtml(parameter.schema?.type || "string")}</td>
+        </tr>
+      `).join("");
+      return `<div class="block"><h3>Parameters</h3><table><thead><tr><th>Name</th><th>In</th><th>Required</th><th>Type</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+
+    function renderSchema(title, schema) {
+      return `<div class="block"><h3>${title}</h3><pre><code>${escapeHtml(JSON.stringify(exampleFromSchema(schema), null, 2))}</code></pre></div>`;
+    }
+
+    function renderResponses(responses) {
+      const rows = Object.entries(responses).map(([code, response]) => `<tr><td><code>${escapeHtml(code)}</code></td><td>${escapeHtml(response.description || "")}</td></tr>`).join("");
+      return `<div class="block"><h3>Responses</h3><table><thead><tr><th>Status</th><th>Description</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+
+    function buildCurl(operation, schema) {
+      const lines = [`curl -X ${operation.method.toUpperCase()} ${apiBase}${operation.path}`];
+      if (!(Array.isArray(operation.security) && operation.security.length === 0)) {
+        lines.push('  -H "Authorization: Bearer ${ACCESS_TOKEN}"');
+      }
+      if (schema) {
+        lines.push('  -H "Content-Type: application/json"');
+        lines.push(`  -d '${JSON.stringify(exampleFromSchema(schema))}'`);
+      }
+      return lines.join(" \\\n");
+    }
+
+    function exampleFromSchema(schema) {
+      if (schema.example !== undefined) return schema.example;
+      if (schema.type === "array") return [exampleFromSchema(schema.items || {})];
+      if (schema.type === "object" || schema.properties) {
+        return Object.fromEntries(Object.entries(schema.properties || {}).map(([key, value]) => [key, exampleFromSchema(value)]));
+      }
+      if (schema.enum) return schema.enum[0];
+      if (schema.type === "integer") return 1000;
+      if (schema.type === "number") return "10.00";
+      if (schema.type === "boolean") return true;
+      if (schema.format === "date") return "2026-04-29";
+      if (schema.format === "date-time") return "2026-04-29T10:30:00Z";
+      if (schema.format === "email") return "demo@profitlens.com";
+      if (schema.format === "uuid") return "00000000-0000-0000-0000-000000000000";
+      return "string";
+    }
+
+    function loadEndpointIntoTester(payload) {
+      const data = JSON.parse(payload);
+      setTester(data.method, data.path, data.body ? JSON.stringify(data.body, null, 2) : "");
+      location.hash = "#testing";
+    }
+
+    function setTester(method, path, body) {
+      elements.testMethod.value = method;
+      elements.testPath.value = path;
+      elements.testBody.value = body;
+    }
+
+    function clearToken() {
+      state.token = "";
+      localStorage.removeItem("profitlens_access_token");
+      updateTokenStatus();
+      showToast("Token temizlendi.");
+    }
+
+    function updateTokenStatus() {
+      const tokenPreview = state.token ? `${state.token.slice(0, 18)}...${state.token.slice(-10)}` : "Yok";
+      elements.authResult.textContent = `Token durumu: ${tokenPreview}`;
+    }
+
+    function formatResult(result) {
+      const payload = result.json || result.text || "";
+      return `HTTP ${result.status}\n\n${typeof payload === "string" ? payload : JSON.stringify(payload, null, 2)}`;
+    }
+
+    function copyElementText(id) {
+      const element = document.getElementById(id);
+      if (element) copyText(element.innerText);
+    }
+
+    function copyText(text) {
+      navigator.clipboard?.writeText(text).then(() => showToast("Kopyalandı."));
+    }
+
+    function showToast(message) {
+      elements.toast.textContent = message;
+      elements.toast.classList.add("show");
+      setTimeout(() => elements.toast.classList.remove("show"), 1400);
+    }
+
+    function slug(value) {
+      return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[char]));
+    }
+  </script>
+</body>
+</html>

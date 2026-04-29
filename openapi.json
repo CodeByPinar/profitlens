@@ -1,0 +1,531 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ProfitLens API",
+    "version": "1.0.0",
+    "description": "ProfitLens public API exposed through the API Gateway. The API helps freelancers and agencies track true project profitability by combining clients, projects, tracked time, expenses, invoices, paid revenue, Redis cache, Kafka events, and analytics snapshots."
+  },
+  "tags": [
+    { "name": "Auth", "description": "User registration, login, refresh token rotation, and logout." },
+    { "name": "Clients", "description": "Client records, client details, and risk score lookups." },
+    { "name": "Projects", "description": "Project lifecycle, status changes, and soft deletion." },
+    { "name": "Time Entries", "description": "Tracked project work that contributes to time cost." },
+    { "name": "Expenses", "description": "Project expenses stored as integer cents or kurus." },
+    { "name": "Invoices", "description": "Invoice creation, delivery status, payment status, and overdue reads." },
+    { "name": "Analytics", "description": "Profitability, margin, dashboard summaries, and cached analytics views." },
+    { "name": "Reports", "description": "Aggregated profitability, client comparison, best projects, and worst clients." }
+  ],
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local API Gateway"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ApiSuccess": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "type": "object" }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "example": "VALIDATION_FAILED" },
+              "message": { "type": "string", "example": "Validation failed" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "security": [],
+        "summary": "Register a user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "full_name"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "user@profitlens.com" },
+                  "password": { "type": "string", "example": "Password123!" },
+                  "full_name": { "type": "string", "example": "Ada Lovelace" },
+                  "hourly_cost": { "type": "string", "example": "250.00" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "User registered" },
+          "400": { "description": "Invalid request" },
+          "409": { "description": "User already exists" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "security": [],
+        "summary": "Login and receive tokens",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "user@profitlens.com" },
+                  "password": { "type": "string", "example": "Password123!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Access and refresh tokens returned" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "security": [],
+        "summary": "Refresh access token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["refresh_token"],
+                "properties": {
+                  "refresh_token": { "type": "string", "example": "refresh-token" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Access token returned" },
+          "401": { "description": "Invalid refresh token" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "security": [],
+        "summary": "Revoke refresh token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["refresh_token"],
+                "properties": {
+                  "refresh_token": { "type": "string", "example": "refresh-token" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Refresh token revoked" }
+        }
+      }
+    },
+    "/clients": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "List clients",
+        "responses": {
+          "200": { "description": "Clients returned" },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Clients"],
+        "summary": "Create client",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "example": "Acme Studio" },
+                  "country": { "type": "string", "example": "TR" },
+                  "currency": { "type": "string", "example": "TRY" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Client created" },
+          "400": { "description": "Validation failed" }
+        }
+      }
+    },
+    "/clients/{id}": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Get client details",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Client returned" },
+          "404": { "description": "Client not found" }
+        }
+      }
+    },
+    "/clients/{id}/risk": {
+      "get": {
+        "tags": ["Clients"],
+        "summary": "Get client risk score",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Risk score returned" },
+          "404": { "description": "Client not found" }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "List projects",
+        "responses": {
+          "200": { "description": "Projects returned" }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Create project",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["client_id", "name"],
+                "properties": {
+                  "client_id": { "type": "string", "format": "uuid" },
+                  "name": { "type": "string", "example": "Landing Page" },
+                  "type": { "type": "string", "enum": ["fixed", "hourly", "retainer"] },
+                  "budget_cents": { "type": "integer", "example": 500000 },
+                  "currency": { "type": "string", "example": "TRY" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Project created" },
+          "404": { "description": "Client not found" }
+        }
+      }
+    },
+    "/projects/{id}": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Get project details",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Project returned" },
+          "404": { "description": "Project not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Projects"],
+        "summary": "Soft delete project",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Project deleted" },
+          "404": { "description": "Project not found" }
+        }
+      }
+    },
+    "/projects/{id}/status": {
+      "patch": {
+        "tags": ["Projects"],
+        "summary": "Update project status",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": { "type": "string", "enum": ["active", "completed", "cancelled"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Project status updated" }
+        }
+      }
+    },
+    "/projects/{id}/time-entries": {
+      "get": {
+        "tags": ["Time Entries"],
+        "summary": "List project time entries",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Time entries returned" }
+        }
+      },
+      "post": {
+        "tags": ["Time Entries"],
+        "summary": "Create time entry",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["hours", "hourly_rate_cents", "entry_date"],
+                "properties": {
+                  "hours": { "type": "string", "example": "4.00" },
+                  "hourly_rate_cents": { "type": "integer", "example": 150000 },
+                  "description": { "type": "string", "example": "Development work" },
+                  "entry_date": { "type": "string", "format": "date" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Time entry created" }
+        }
+      }
+    },
+    "/projects/{id}/expenses": {
+      "get": {
+        "tags": ["Expenses"],
+        "summary": "List project expenses",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Expenses returned" }
+        }
+      },
+      "post": {
+        "tags": ["Expenses"],
+        "summary": "Create expense",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["amount_cents", "expense_date"],
+                "properties": {
+                  "category": { "type": "string", "enum": ["tool", "outsource", "meeting", "other"] },
+                  "amount_cents": { "type": "integer", "example": 50000 },
+                  "currency": { "type": "string", "example": "TRY" },
+                  "description": { "type": "string", "example": "Design tool" },
+                  "expense_date": { "type": "string", "format": "date" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Expense created" }
+        }
+      }
+    },
+    "/projects/{id}/profitability": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Get project profitability",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Profitability returned" }
+        }
+      }
+    },
+    "/invoices": {
+      "get": {
+        "tags": ["Invoices"],
+        "summary": "List invoices",
+        "responses": {
+          "200": { "description": "Invoices returned" }
+        }
+      },
+      "post": {
+        "tags": ["Invoices"],
+        "summary": "Create invoice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["project_id", "amount_cents", "issued_date", "due_date"],
+                "properties": {
+                  "project_id": { "type": "string", "format": "uuid" },
+                  "amount_cents": { "type": "integer", "example": 500000 },
+                  "currency": { "type": "string", "example": "TRY" },
+                  "issued_date": { "type": "string", "format": "date" },
+                  "due_date": { "type": "string", "format": "date" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Invoice created" }
+        }
+      }
+    },
+    "/invoices/overdue": {
+      "get": {
+        "tags": ["Invoices"],
+        "summary": "List overdue invoices",
+        "responses": {
+          "200": { "description": "Overdue invoices returned" }
+        }
+      }
+    },
+    "/invoices/{id}": {
+      "get": {
+        "tags": ["Invoices"],
+        "summary": "Get invoice details",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Invoice returned" },
+          "404": { "description": "Invoice not found" }
+        }
+      }
+    },
+    "/invoices/{id}/send": {
+      "patch": {
+        "tags": ["Invoices"],
+        "summary": "Mark invoice as sent",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Invoice marked as sent" }
+        }
+      }
+    },
+    "/invoices/{id}/pay": {
+      "patch": {
+        "tags": ["Invoices"],
+        "summary": "Mark invoice as paid",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Invoice marked as paid" }
+        }
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "tags": ["Analytics"],
+        "summary": "Get user dashboard summary",
+        "responses": {
+          "200": { "description": "Dashboard returned" }
+        }
+      }
+    },
+    "/reports/profitability": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Get profitability report",
+        "parameters": [
+          { "name": "period", "in": "query", "required": false, "schema": { "type": "string", "enum": ["weekly", "monthly", "yearly"] } }
+        ],
+        "responses": {
+          "200": { "description": "Profitability report returned" },
+          "400": { "description": "Invalid period" }
+        }
+      }
+    },
+    "/reports/clients": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Get client comparison report",
+        "responses": {
+          "200": { "description": "Client report returned" }
+        }
+      }
+    },
+    "/reports/best-projects": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Get top 5 profitable projects",
+        "responses": {
+          "200": { "description": "Best projects returned" }
+        }
+      }
+    },
+    "/reports/worst-clients": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Get top 5 risky clients",
+        "responses": {
+          "200": { "description": "Worst clients returned" }
+        }
+      }
+    }
+  }
+}
