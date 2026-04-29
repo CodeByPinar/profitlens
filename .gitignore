@@ -1,0 +1,27 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Runtime logs
+*.log
+docker-compose.log
+docker-compose.err.log
+
+# Go build and test artifacts
+.gocache*/
+bin/
+coverage.out
+*.test
+*.go.[0-9]*
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Docker/local scratch data
+tmp/
+dist/

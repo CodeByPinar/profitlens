@@ -138,6 +138,14 @@ Grafana        <-->  Monitoring dashboard
 
 ### Projeyi Çalıştır
 
+Lokal ayarlari hazirla:
+
+```bash
+cp .env.example .env
+```
+
+`.env.example` yalnizca lokal gelistirme icin ornek degerler icerir. Production ortaminda `JWT_SECRET`, veritabani parolasi ve admin parolalari secret manager veya deployment ortamindan verilmelidir.
+
 ```bash
 docker compose up -d --build
 ```
@@ -160,9 +168,9 @@ docker compose logs -f gateway
 |---|---|---|
 | API Portal | `http://localhost:8000/docs` | Public |
 | Gateway Metrics | `http://localhost:8000/metrics` | Public |
-| Grafana | `http://localhost:3000` | `admin` / `admin` |
+| Grafana | `http://localhost:3000` | `.env` icindeki `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` |
 | Prometheus | `http://localhost:9090` | Public |
-| pgAdmin | `http://localhost:5050` | `admin@profitlens.com` / `admin` |
+| pgAdmin | `http://localhost:5050` | `.env` icindeki `PGADMIN_DEFAULT_EMAIL` / `PGADMIN_DEFAULT_PASSWORD` |
 
 pgAdmin içinde PostgreSQL server eklemek için:
 
@@ -170,7 +178,7 @@ pgAdmin içinde PostgreSQL server eklemek için:
 Host: postgres
 Port: 5432
 Username: profitlens
-Password: profitlens
+Password: .env icindeki POSTGRES_PASSWORD
 Database: profitlens
 ```
 
@@ -180,7 +188,7 @@ Host makineden bağlanırken:
 Host: localhost
 Port: 55432
 Username: profitlens
-Password: profitlens
+Password: .env icindeki POSTGRES_PASSWORD
 Database: profitlens
 ```
 
@@ -445,8 +453,8 @@ Grafana:    http://localhost:3000
 Grafana giriş bilgileri:
 
 ```text
-Username: admin
-Password: admin
+Username: .env icindeki GRAFANA_ADMIN_USER
+Password: .env icindeki GRAFANA_ADMIN_PASSWORD
 ```
 
 ## Güvenlik Modeli
@@ -504,6 +512,8 @@ Gateway test:
 cd gateway
 go test ./...
 ```
+
+CI ile ayni Go test/build matrisini lokal calistirmak icin her modulde `go test ./...` ve `go build ./cmd` komutlari kullanilir. GitHub Actions workflow'u gateway, auth, project, billing ve analytics modullerini ayri ayri test eder; ayrica `docker compose config --quiet` ile Compose dosyasini dogrular.
 
 Servis build:
 
@@ -632,7 +642,6 @@ profitlens/
 - Multi-currency conversion service
 - Client complaint/revision tracking
 - Kafka retry ve dead letter topic stratejisi
-- CI pipeline
 - Production deployment manifests
 - Public SDK örnekleri
 

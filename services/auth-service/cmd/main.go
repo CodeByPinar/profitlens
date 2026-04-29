@@ -52,6 +52,10 @@ func main() {
 	defer logger.Sync()
 
 	serviceName := env("SERVICE_NAME", "auth-service")
+	jwtSecret, err := requiredEnv("JWT_SECRET")
+	if err != nil {
+		logger.Fatal("missing required configuration", zap.Error(err))
+	}
 	cfg, err := pgxpool.ParseConfig(env("DATABASE_URL", "postgres://profitlens:profitlens@localhost:5432/profitlens?sslmode=disable"))
 	if err != nil {
 		logger.Fatal("failed to parse database url", zap.Error(err))
@@ -68,7 +72,7 @@ func main() {
 		db:         db,
 		redis:      rdb,
 		logger:     logger,
-		jwtSecret:  []byte(env("JWT_SECRET", "change-me")),
+		jwtSecret:  []byte(jwtSecret),
 		service:    serviceName,
 		accessTTL:  time.Duration(envInt("ACCESS_TOKEN_TTL_MINUTES", 15)) * time.Minute,
 		refreshTTL: time.Duration(envInt("REFRESH_TOKEN_TTL_HOURS", 168)) * time.Hour,
@@ -277,6 +281,13 @@ func env(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func requiredEnv(key string) (string, error) {
+	if v := os.Getenv(key); v != "" {
+		return v, nil
+	}
+	return "", errors.New(key + " is required")
 }
 
 func envInt(key string, fallback int) int {

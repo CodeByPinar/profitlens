@@ -46,11 +46,15 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 	serviceName := env("SERVICE_NAME", "gateway")
+	jwtSecret, err := requiredEnv("JWT_SECRET")
+	if err != nil {
+		logger.Fatal("missing required configuration", zap.Error(err))
+	}
 	s := &state{
 		client:    &http.Client{Timeout: 30 * time.Second},
 		redis:     redis.NewClient(&redis.Options{Addr: env("REDIS_ADDR", "localhost:6379")}),
 		logger:    logger,
-		secret:    []byte(env("JWT_SECRET", "change-me")),
+		secret:    []byte(jwtSecret),
 		service:   serviceName,
 		requests:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "http_requests_total", Help: "Total HTTP requests.", ConstLabels: prometheus.Labels{"service": serviceName}}, []string{"method", "path", "status"}),
 		duration:  prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "http_request_duration_seconds", Help: "HTTP request duration.", ConstLabels: prometheus.Labels{"service": serviceName}}, []string{"method", "path"}),
@@ -219,4 +223,11 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func requiredEnv(key string) (string, error) {
+	if v := os.Getenv(key); v != "" {
+		return v, nil
+	}
+	return "", errors.New(key + " is required")
 }

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  go-test:
+    name: Go test and build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - gateway
+          - services/auth-service
+          - services/project-service
+          - services/billing-service
+          - services/analytics-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: Test
+        working-directory: ${{ matrix.module }}
+        run: go test ./...
+
+      - name: Build
+        working-directory: ${{ matrix.module }}
+        run: go build ./cmd
+
+  compose-config:
+    name: Docker Compose config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare local env
+        run: cp .env.example .env
+
+      - name: Validate compose file
+        run: docker compose config --quiet

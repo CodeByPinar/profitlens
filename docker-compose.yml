@@ -3,11 +3,11 @@ services:
     image: postgres:16
     container_name: profitlens-postgres
     environment:
-      POSTGRES_USER: profitlens
-      POSTGRES_PASSWORD: profitlens
-      POSTGRES_DB: profitlens
+      POSTGRES_USER: ${POSTGRES_USER:-profitlens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-profitlens_local_password}
+      POSTGRES_DB: ${POSTGRES_DB:-profitlens}
     ports:
-      - "55432:5432"
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./services/auth-service/migrations:/migrations/auth:ro
@@ -15,7 +15,7 @@ services:
       - ./services/billing-service/migrations:/migrations/billing:ro
       - ./services/analytics-service/migrations:/migrations/analytics:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U profitlens -d profitlens"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-profitlens} -d ${POSTGRES_DB:-profitlens}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -64,7 +64,7 @@ services:
     container_name: profitlens-migrate-auth
     volumes:
       - ./services/auth-service/migrations:/migrations:ro
-    command: ["-path", "/migrations", "-database", "postgres://profitlens:profitlens@postgres:5432/profitlens?sslmode=disable&x-migrations-table=auth_schema_migrations", "up"]
+    command: ["-path", "/migrations", "-database", "postgres://${POSTGRES_USER:-profitlens}:${POSTGRES_PASSWORD:-profitlens_local_password}@postgres:5432/${POSTGRES_DB:-profitlens}?sslmode=disable&x-migrations-table=auth_schema_migrations", "up"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,7 +74,7 @@ services:
     container_name: profitlens-migrate-project
     volumes:
       - ./services/project-service/migrations:/migrations:ro
-    command: ["-path", "/migrations", "-database", "postgres://profitlens:profitlens@postgres:5432/profitlens?sslmode=disable&x-migrations-table=project_schema_migrations", "up"]
+    command: ["-path", "/migrations", "-database", "postgres://${POSTGRES_USER:-profitlens}:${POSTGRES_PASSWORD:-profitlens_local_password}@postgres:5432/${POSTGRES_DB:-profitlens}?sslmode=disable&x-migrations-table=project_schema_migrations", "up"]
     depends_on:
       migrate-auth:
         condition: service_completed_successfully
@@ -84,7 +84,7 @@ services:
     container_name: profitlens-migrate-billing
     volumes:
       - ./services/billing-service/migrations:/migrations:ro
-    command: ["-path", "/migrations", "-database", "postgres://profitlens:profitlens@postgres:5432/profitlens?sslmode=disable&x-migrations-table=billing_schema_migrations", "up"]
+    command: ["-path", "/migrations", "-database", "postgres://${POSTGRES_USER:-profitlens}:${POSTGRES_PASSWORD:-profitlens_local_password}@postgres:5432/${POSTGRES_DB:-profitlens}?sslmode=disable&x-migrations-table=billing_schema_migrations", "up"]
     depends_on:
       migrate-project:
         condition: service_completed_successfully
@@ -94,7 +94,7 @@ services:
     container_name: profitlens-migrate-analytics
     volumes:
       - ./services/analytics-service/migrations:/migrations:ro
-    command: ["-path", "/migrations", "-database", "postgres://profitlens:profitlens@postgres:5432/profitlens?sslmode=disable&x-migrations-table=analytics_schema_migrations", "up"]
+    command: ["-path", "/migrations", "-database", "postgres://${POSTGRES_USER:-profitlens}:${POSTGRES_PASSWORD:-profitlens_local_password}@postgres:5432/${POSTGRES_DB:-profitlens}?sslmode=disable&x-migrations-table=analytics_schema_migrations", "up"]
     depends_on:
       migrate-billing:
         condition: service_completed_successfully
@@ -119,8 +119,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin_local_password}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -132,8 +132,8 @@ services:
     image: dpage/pgadmin4:8.12
     container_name: profitlens-pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@profitlens.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@profitlens.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-pgadmin_local_password}
       PGADMIN_CONFIG_WTF_CSRF_ENABLED: "False"
     ports:
       - "5050:80"
@@ -145,6 +145,10 @@ services:
     build: ./services/auth-service
     container_name: profitlens-auth-service
     env_file: ./services/auth-service/.env.example
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-profitlens}:${POSTGRES_PASSWORD:-profitlens_local_password}@postgres:5432/${POSTGRES_DB:-profitlens}?sslmode=disable
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required. Copy .env.example to .env for local development.}
     ports:
       - "8001:8001"
     depends_on:
@@ -157,6 +161,11 @@ services:
     build: ./services/project-service
     container_name: profitlens-project-service
     env_file: ./services/project-service/.env.example
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-profitlens}:${POSTGRES_PASSWORD:-profitlens_local_password}@postgres:5432/${POSTGRES_DB:-profitlens}?sslmode=disable
+      REDIS_ADDR: redis:6379
+      KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required. Copy .env.example to .env for local development.}
     ports:
       - "8002:8002"
     depends_on:
@@ -171,6 +180,11 @@ services:
     build: ./services/billing-service
     container_name: profitlens-billing-service
     env_file: ./services/billing-service/.env.example
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-profitlens}:${POSTGRES_PASSWORD:-profitlens_local_password}@postgres:5432/${POSTGRES_DB:-profitlens}?sslmode=disable
+      REDIS_ADDR: redis:6379
+      KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required. Copy .env.example to .env for local development.}
     ports:
       - "8003:8003"
     depends_on:
@@ -185,6 +199,11 @@ services:
     build: ./services/analytics-service
     container_name: profitlens-analytics-service
     env_file: ./services/analytics-service/.env.example
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-profitlens}:${POSTGRES_PASSWORD:-profitlens_local_password}@postgres:5432/${POSTGRES_DB:-profitlens}?sslmode=disable
+      REDIS_ADDR: redis:6379
+      KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required. Copy .env.example to .env for local development.}
     ports:
       - "8004:8004"
     depends_on:
@@ -199,6 +218,13 @@ services:
     build: ./gateway
     container_name: profitlens-gateway
     env_file: ./gateway/.env.example
+    environment:
+      REDIS_ADDR: redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required. Copy .env.example to .env for local development.}
+      AUTH_SERVICE_URL: http://auth-service:8001
+      PROJECT_SERVICE_URL: http://project-service:8002
+      BILLING_SERVICE_URL: http://billing-service:8003
+      ANALYTICS_SERVICE_URL: http://analytics-service:8004
     ports:
       - "8000:8000"
     depends_on:

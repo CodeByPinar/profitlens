@@ -53,6 +53,10 @@ func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 	serviceName := env("SERVICE_NAME", "billing-service")
+	jwtSecret, err := requiredEnv("JWT_SECRET")
+	if err != nil {
+		logger.Fatal("missing required configuration", zap.Error(err))
+	}
 	cfg, err := pgxpool.ParseConfig(env("DATABASE_URL", "postgres://profitlens:profitlens@localhost:5432/profitlens?sslmode=disable"))
 	if err != nil {
 		logger.Fatal("failed to parse database url", zap.Error(err))
@@ -66,7 +70,7 @@ func main() {
 	s := &state{
 		db: db, redis: redis.NewClient(&redis.Options{Addr: env("REDIS_ADDR", "localhost:6379")}),
 		kafka:  &kafka.Writer{Addr: kafka.TCP(strings.Split(env("KAFKA_BROKERS", "localhost:9092"), ",")...), Topic: env("KAFKA_TOPIC", "profitlens.events"), Balancer: &kafka.LeastBytes{}},
-		logger: logger, secret: []byte(env("JWT_SECRET", "change-me")), service: serviceName,
+		logger: logger, secret: []byte(jwtSecret), service: serviceName,
 		requests:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "http_requests_total", Help: "Total HTTP requests.", ConstLabels: prometheus.Labels{"service": serviceName}}, []string{"method", "path", "status"}),
 		duration:  prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "http_request_duration_seconds", Help: "HTTP request duration.", ConstLabels: prometheus.Labels{"service": serviceName}}, []string{"method", "path"}),
 		published: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "kafka_events_published_total", Help: "Published Kafka events.", ConstLabels: prometheus.Labels{"service": serviceName}}, []string{"event_type"}),
@@ -297,4 +301,11 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func requiredEnv(key string) (string, error) {
+	if v := os.Getenv(key); v != "" {
+		return v, nil
+	}
+	return "", errors.New(key + " is required")
 }
